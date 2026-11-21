@@ -58,3 +58,12 @@ input, select { border: 1px solid var(--line-2); border-radius: 4px; background:
 .appeal-form .appeal-note input { width: min(100%, 230px); }
 #appeal-feedback { flex-basis: 100%; color: var(--ok); font-size: 12px; }
 #appeal-feedback.error { color: var(--bad); }
+.flag[data-status=CONFIRMED] { color: var(--ok); background: var(--ok-tint); }
+.flag[data-status=UNRESOLVED], .flag[data-status=STALE] { color: var(--warn); background: var(--warn-tint); }
+.overlap-row { border-bottom: 1px solid var(--line); padding: 6px 0; font-size: 11px; }
+.overlap-row:last-child { border-bottom: 0; }
+.overlap-head { display: flex; align-items: center; gap: 7px; }
+.overlap-head .overlap-plan { color: var(--ink-2); }
+.overlap-basis { display: flex; flex-wrap: wrap; gap: 5px; margin-top: 4px; }
+.basis-tag { border: 1px solid var(--line-2); border-radius: 3px; padding: 2px 5px; color: var(--ink-2); }
+.basis-tag.chosen { border-color: var(--ok); color: var(--ok); background: var(--ok-tint); font-weight: 650; }

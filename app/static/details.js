@@ -46,7 +46,12 @@ function intake(root, payload) {
 function plans(root, payload) {
   root.append(table([['柜位'], ['巡检时刻 UTC'], ['生效版'], ['应陈商品'], ['重叠候选'], ['原因'], ['源行']],
     payload.decisions.map(row => [`${row.store}:${row.slot}`, row.visit?.at_utc, row.plan?.plan, row.plan?.sku,
-      row.candidates.map(item => item.plan).join(' / '), reason(row.reason), source(row.plan?.source) || source(row.roster_source)])));
+      (row.overlap_candidates || row.candidates).map(item => item.plan).join(' / '), reason(row.reason), source(row.plan?.source) || source(row.roster_source)])));
+  group(root, '叠期柜位', table([['柜位'], ['状态'], ['采用版本'], ['两份依据'], ['确认依据']], payload.overlaps.map(row => [
+    row.key, flag(row.status), row.plan || '待判',
+    row.candidates.map(item => `${item.plan}(${item.source})`).join(' / '),
+    row.confirmation ? `${row.confirmation.evidence_ref} · ${row.confirmation.actor}` : '—',
+  ])));
   group(root, '商品旧名', table([['旧名'], ['归并编号']], Object.entries(payload.aliases)));
   group(root, '替代巡检', table([['门店'], ['已替代'], ['采信'], ['源行']],
     payload.replaced_visits.map(row => [row.store, row.inactive_visit, row.active_visit, source(row.source)])));
@@ -82,6 +87,15 @@ function coverage(root, payload) {
     row.pool, row.selected, row.verified, row.pending, row.isolated, row.unfilled, row.gap])));
   group(root, '抽中柜位', table([['柜位'], ['店组'], ['证据状态'], ['原因'], ['名册源行'], ['抽签摘要', 'clip']], payload.slots.map(row => [
     row.key, row.group, row.evidence_status === 'VERIFIED' ? '已核' : names[row.evidence_status], reason(row.reason), source(row.source), row.score,
+  ])));
+}
+
+function overlaps(root, payload) {
+  root.append(table([['叠期柜位'], ['状态'], ['采用版本'], ['保留依据'], ['确认依据'], ['确认时间']], payload.overlaps.map(row => [
+    row.key, flag(row.status), row.plan || '待判',
+    row.candidates.map(item => `${item.plan}(${item.source})`).join(' / '),
+    row.confirmation ? `${row.confirmation.evidence_ref} · ${row.confirmation.actor}` : '—',
+    row.confirmation?.created_at || '—',
   ])));
 }
 
@@ -123,5 +137,5 @@ export function details(root, key, payload, options) {
   }
   if (key === 'photos') photos(root, payload, options.dataset);
   else if (key === 'penalties') penalties(root, payload, options.filter);
-  else ({intake, plans, coverage, settlement, appeals})[key](root, payload);
+  else ({intake, plans, coverage, settlement, appeals, overlaps})[key](root, payload);
 }

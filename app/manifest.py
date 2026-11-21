@@ -13,9 +13,16 @@ def now():
     return datetime.now(timezone.utc).isoformat(timespec='milliseconds')
 
 
+def confirmation_basis(confirmations):
+    """参与运行键的确认只留事实字段，并按柜位排序，重排登记顺序不产生新批次。"""
+    return [{'key': row['key'], 'plan': row['plan'], 'confirmation_id': row['confirmation_id'], 'digest': row['digest']}
+            for row in sorted(confirmations.values(), key=lambda item: (item['key'], item['plan']))]
+
+
 def manifest(audit):
     parameters = {'dataset': audit.options.dataset, 'sample_size': audit.sample_size}
     key = {'parameters': parameters, 'rule_version': RULE_VERSION,
-           'inputs': {name: sha256(raw).hexdigest() for name, raw in audit.bundle.items()}}
+           'inputs': {name: sha256(raw).hexdigest() for name, raw in audit.bundle.items()},
+           'confirmations': confirmation_basis(audit.confirmations)}
     return {**key, 'run_id': sha256(canonical(key).encode()).hexdigest(), 'created_at': now(),
             'version': audit.intake['campaign']['version']}

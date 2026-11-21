@@ -8,6 +8,8 @@ from fastapi.staticfiles import StaticFiles
 from app.config import ROOT, RULE_VERSION, Settings
 from app.errors import AuditError
 from app.modules.appeals.handler import router as appeals
+from app.modules.confirmations.handler import router as confirmations
+from app.modules.confirmations.overlaps import router as overlaps
 from app.modules.coverage.handler import router as coverage
 from app.modules.intake.handler import router as intake
 from app.modules.penalties.handler import router as penalties
@@ -28,7 +30,7 @@ def create_app(settings=None):
     app.state.settings = settings or Settings()
     app.state.store = Store(app.state.settings.database)
     app.mount('/assets', StaticFiles(directory=ROOT / 'app' / 'static'), name='assets')
-    for router in (web, intake, plans, photos, coverage, penalties, settlement, appeals):
+    for router in (web, intake, plans, overlaps, photos, coverage, penalties, confirmations, settlement, appeals):
         app.include_router(router)
 
     @app.exception_handler(AuditError)

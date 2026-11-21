@@ -1,6 +1,7 @@
 export const outcomes = ['COMPLIANT', 'VIOLATION', 'PENDING', 'ISOLATED'];
 export const names = {COMPLIANT: '合规', VIOLATION: '违规', PENDING: '待证', ISOLATED: '隔离', BALANCED: '已勾稽',
   OPEN: '已受理', UPHELD: '维持原罚', WAIVED: '全额免除', REDUCED: '部分减免', NONE: '未发起',
+  CONFIRMED: '已确认', UNRESOLVED: '待判', STALE: '确认失效',
   RECEIVED: '已收件', EMPTY_FILE: '空档', BLANK_FILE: '空行档', HEADER_ONLY: '仅表头'};
 const dictionary = JSON.parse(document.getElementById('reason-map').textContent);
 export const reason = code => code ? dictionary[code] || code : '—';
@@ -94,4 +95,28 @@ export function accounts(root, appeal) {
     line.append(element('span', label), element('strong', money(cents), 'num'));
     return line;
   }));
+}
+
+export function overlaps(root, rows) {
+  if (!rows.length) {
+    root.replaceChildren(element('p', '本期没有叠期柜位。', 'empty'));
+    return;
+  }
+  const order = {UNRESOLVED: 0, STALE: 1, CONFIRMED: 2};
+  const entries = [...rows].sort((a, b) => order[a.status] - order[b.status] || a.key.localeCompare(b.key)).map(row => {
+    const line = element('div', null, 'overlap-row');
+    line.dataset.status = row.status;
+    const head = element('div', null, 'overlap-head');
+    head.append(element('strong', row.key, 'num'), flag(row.status),
+                element('span', row.confirmation ? `采用 ${row.plan}` : '两份依据待判', 'overlap-plan'));
+    const basis = element('div', null, 'overlap-basis');
+    for (const item of row.candidates) {
+      const chosen = row.plan === item.plan;
+      basis.append(element('span', `${item.plan} · ${item.sku} · ${item.facings} 排面 · ${money(item.price_cents)} 元${chosen ? '（采用）' : ''}`,
+        chosen ? 'basis-tag chosen' : 'basis-tag'));
+    }
+    line.append(head, basis);
+    return line;
+  });
+  root.replaceChildren(...entries);
 }

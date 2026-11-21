@@ -14,6 +14,7 @@
 | M5 罚则裁决 | 确定缺品、乱陈、排面和价签的处罚 | `GET /api/penalties` | `app/modules/penalties/rules.py` `app/modules/penalties/service.py` | `tests/test_penalties.py` |
 | M6 结算勾稽 | 按原件、柜位和金额对账并留存批次 | `GET /api/settlement` `POST /api/settlement/runs` | `app/modules/settlement/reconcile.py` `app/modules/settlement/service.py` `app/store.py` | `tests/test_settlement.py` |
 | M7 异议复核 | 留存复核时序、重算净额并导出 | `GET /api/appeals/{run_id}` `POST /api/appeals/{run_id}/events` | `app/modules/appeals/transitions.py` `app/modules/appeals/service.py` | `tests/test_appeals.py` |
+| M8 叠期确认 | 逐柜登记采用版本，按已确认范围出结论 | `GET /api/overlaps` `GET/POST /api/confirmations` | `app/modules/confirmations/service.py` `app/modules/confirmations/handler.py` `app/modules/confirmations/overlaps.py` | `tests/test_confirmations.py` |
 
 ## 陷阱登记
 
@@ -38,6 +39,9 @@
 | TRAP-23 | `sample_data/field/visits.csv` 和 `plans.csv` 在同一秒切版 | 同秒命中两版 | 左闭右开只用新版 | `app/modules/plans/windows.py` | `tests/test_plans.py::test_exact_rollover_takes_new_plan_only` |
 | TRAP-24 | `sample_data/field/campaign.json` 的 5、3、2 权重分 18 柜 | 独立舍入失总额 | 最大余数分到 9、5、4 | `app/modules/coverage/sampling.py` | `tests/test_coverage.py::test_weighted_quotas_allocate_remainder_without_losing_a_slot` |
 | TRAP-25 | `sample_data/field/plans.csv` 的两版节日陈列叠期 | 挑一版直接开罚 | 单柜隔离并保留两份原件 | `app/modules/plans/windows.py` | `tests/test_plans.py::test_overlap_is_isolated_with_both_plan_versions` |
+| TRAP-29 | 运营只确认了 `002:A04` 采用节日图，其他叠期柜位仍待核对 | 把确认扩到整店或整类，改写未签柜位 | 确认按单柜单版本落库，范围外保留两版待判 | `app/modules/confirmations/service.py` `app/modules/settlement/reconcile.py` | `tests/test_confirmations.py::test_confirmed_scope_forms_conclusion_and_leaves_the_rest_pending` `tests/test_confirmations.py::test_confirmation_cannot_be_widened_to_store_or_category` |
+| TRAP-30 | 同一确认被重复提交、生成失败后重试 | 重复生成结果或覆盖旧批次 | 确认幂等回放；失败零写入，新结果另起批次且旧批次可查 | `app/store.py` `app/modules/settlement/service.py` | `tests/test_confirmations.py::test_same_confirmation_rerun_does_not_generate_a_second_result` `tests/test_confirmations.py::test_failed_generation_keeps_previous_batch_and_starts_a_new_one_after_repair` |
+| TRAP-31 | 已确认的陈列图后来改了排面或消失 | 继续按旧确认开罚 | 确认摘要失配时该柜退回待判并标 `STALE` | `app/modules/confirmations/service.py` | `tests/test_confirmations.py::test_confirmation_stops_applying_when_plan_facts_change` |
 | TRAP-26 | `sample_data/field/` 的 `002:A03` 异议测试以旧版本重提 | 覆盖已受理 | 版本锁加唯一请求键 | `app/modules/appeals/transitions.py` `app/store.py` | `tests/test_appeals.py::test_stale_appeal_version_cannot_override_current_stage` |
 | TRAP-27 | `sample_data/field/photos/P002.png` 与 `P010.png` 字节相同且绑不同柜位 | 文件名不同便放行 | 实际 SHA-256 验两侧绑定 | `app/modules/photos/fingerprints.py` `app/modules/photos/bindings.py` | `tests/test_photos.py::test_different_file_names_with_equal_bytes_flag_both_bindings` |
 | TRAP-28 | `sample_data/field/` 的 `001:A04` 缺图、`002:A03` 已完成清点但缺品 | 都当缺品开罚，或都搁置 | 前者待证且 0 元，后者罚 150 元 | `app/modules/coverage/service.py` `app/modules/penalties/rules.py` | `tests/test_penalties.py::test_missing_photo_and_missing_sku_have_distinct_amounts` |
@@ -48,3 +52,5 @@
 - 原罚额 29 500 分＝15 000 缺品＋5 500 排面不足＋9 000 错品。
 - 七档原件均按源行号对账。清点表 50＝40 采信＋10 隔离；两条同柜矛盾行有各自来源。
 - 异议记录逐柜追加，最终净额从原罚额减去确认的减免。对账支持同计数但错行、元分混用和重复事件等反例。
+- 叠期确认逐柜生效：确认 `002:A04` 采用 `HOL-802` 后，本批 17 柜变为 8 合规、4 违规、3 待证、2 隔离，原罚额 35 000 分；未确认的叠期柜位仍按 `PLAN_OVERLAP` 隔离并保留两份原件。
+- 确认幂等：同一柜位同一版本重复提交回放原 `confirmation_id`，相同确认重跑取回同一批次；改动版本或依据返回 409。生成失败零批次写入，修复后另起批次，历史批次经 `GET /api/settlement/batches` 仍可查。

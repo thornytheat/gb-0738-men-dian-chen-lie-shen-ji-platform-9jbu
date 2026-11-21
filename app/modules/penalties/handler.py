@@ -10,4 +10,4 @@ router = APIRouter(prefix='/api/penalties')
 
 @router.get('')
 def inspect(request: Request, options: Annotated[Options, Query()]):
-    return Audit(request.app.state.settings, options).penalties
+    return Audit(request.app.state.settings, options, request.app.state.store).penalties

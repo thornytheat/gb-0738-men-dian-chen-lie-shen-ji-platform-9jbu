@@ -17,7 +17,7 @@ router = APIRouter(prefix='/api/photos')
 
 @router.get('')
 def inspect(request: Request, options: Annotated[Options, Query()]):
-    return Audit(request.app.state.settings, options).photos
+    return Audit(request.app.state.settings, options, request.app.state.store).photos
 
 
 @router.get('/original/{dataset}/{filename}/{digest}')

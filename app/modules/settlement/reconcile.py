@@ -49,6 +49,32 @@ def reconcile(intake, plans, photos, coverage, judgments):
     total = sum(row['original_cents'] for row in rows)
     if total != sum(item['original_cents'] for item in strata):
         raise AuditError('AMOUNT_LEDGER_MISMATCH', '罚额分组对账失败', 500)
+    overlaps = overlap_ledger(plans, rows)
     return {'balanced': True, 'target': coverage['target'], 'selected': len(rows), 'unfilled': coverage['unfilled'],
             'counts': counts, 'original_cents': total, 'strata': strata, 'sources': sources,
+            'overlaps': overlaps, 'overlap_summary': plans['overlap_summary'],
             'quarantine': quarantine, 'reason_counts': dict(sorted(Counter(row['reason'] for row in quarantine).items()))}
+
+
+def overlap_ledger(plans, rows):
+    """叠期柜位的结论必须与依据一致：已确认的按确认版本裁决，未确认的仍待判。"""
+    lists = {row['key']: row for row in rows}
+    for item in plans['overlaps']:
+        decision = next(row for row in plans['decisions']
+                        if f"{row['store']}:{row['slot']}" == item['key'])
+        if item['status'] == 'CONFIRMED':
+            if decision.get('plan') is None or decision['plan']['plan'] != item['plan']:
+                raise AuditError('OVERLAP_LEDGER_MISMATCH', '已确认叠期柜位的版本不符', 500, item['key'])
+            judged = lists.get(item['key'])
+            if judged is not None and judged['plan'] and judged['plan']['plan'] != item['plan']:
+                raise AuditError('OVERLAP_LEDGER_MISMATCH', '叠期柜位裁决未按确认版本', 500, item['key'])
+        elif item['status'] == 'UNRESOLVED':
+            if decision['reason'] != 'PLAN_OVERLAP' or len(item['candidates']) < 2:
+                raise AuditError('OVERLAP_LEDGER_MISMATCH', '未确认叠期柜位须保留两份依据', 500, item['key'])
+            judged = lists.get(item['key'])
+            if judged is not None and judged['status'] != 'ISOLATED':
+                raise AuditError('OVERLAP_LEDGER_MISMATCH', '未确认叠期柜位不得直接裁决', 500, item['key'])
+        elif item['status'] == 'STALE':
+            if decision.get('confirmed') or item['plan'] is not None or len(item['candidates']) < 2:
+                raise AuditError('OVERLAP_LEDGER_MISMATCH', '失效确认须退回待判并保留两份依据', 500, item['key'])
+    return {'rows': plans['overlaps'], 'summary': plans['overlap_summary']}
